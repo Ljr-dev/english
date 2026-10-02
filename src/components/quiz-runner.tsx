@@ -65,14 +65,18 @@ export function QuizRunner({
 
   const goNext = useCallback(
     (fromIndex: number, currentWords: WordWithProgress[]) => {
+      // Avança para a próxima palavra ainda não dominada (masteryLevel < alvo),
+      // considerando também as que acertou uma vez mas ainda não dominou.
+      const isPending = (w: WordWithProgress) => !isWordMastered(w.masteryLevel);
+
       const nextPending = currentWords.findIndex(
-        (w, i) => i > fromIndex && w.masteryLevel === 0,
+        (w, i) => i > fromIndex && isPending(w),
       );
       if (nextPending !== -1) {
         setIndex(nextPending);
         return;
       }
-      const firstPending = currentWords.findIndex((w) => w.masteryLevel === 0);
+      const firstPending = currentWords.findIndex(isPending);
       setIndex(firstPending === -1 ? fromIndex : firstPending);
     },
     [],
