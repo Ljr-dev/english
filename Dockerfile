@@ -39,12 +39,10 @@ COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Prisma: schema, migrations e engines precisam existir no runtime
 COPY --from=builder --chown=nextjs:nodejs /app/prisma ./prisma
 COPY --from=builder --chown=nextjs:nodejs /app/prisma.config.ts ./prisma.config.ts
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/prisma ./node_modules/prisma
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/tsx ./node_modules/tsx
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/dotenv ./node_modules/dotenv
-COPY --from=builder --chown=nextjs:nodejs /app/node_modules/bcryptjs ./node_modules/bcryptjs
+
+# node_modules completo do builder: garante as dependências transitivas do
+# Prisma CLI (effect, @prisma/config, ...) usadas por migrate/seed no runtime.
+COPY --from=builder --chown=nextjs:nodejs /app/node_modules ./node_modules
 
 USER nextjs
 EXPOSE 3000
