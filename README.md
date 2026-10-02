@@ -2,6 +2,8 @@
 
 Sistema de aprendizado de vocabulário em inglês com **progressão travada**: você só avança quando acerta.
 
+🌐 **Produção:** https://english.ljr.dev.br
+
 Do **iniciante ao fluente** (A1 → C2), com 240 palavras, 24 lições e uma frase de consolidação gerada por IA no final de cada lição.
 
 ---
