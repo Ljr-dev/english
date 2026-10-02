@@ -50,7 +50,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const expected = mode === "EN_TO_PT" ? word.portuguese : word.english;
+  // MULTIPLE_CHOICE é sempre EN→PT (pergunta em inglês, resposta em português).
+  const expected = mode === "PT_TO_EN" ? word.english : word.portuguese;
   const isCorrect = isAnswerCorrectWithTolerance(answer, expected);
 
   const existing = await prisma.userProgress.findUnique({

@@ -53,6 +53,7 @@ export function QuizRunner({
 
   const options = useMemo(() => {
     if (mode !== "MULTIPLE_CHOICE" || !word) return [];
+    // Múltipla escolha é sempre EN→PT: pergunta em inglês, opções em português.
     const pool = words
       .filter((w) => w.id !== word.id)
       .map((w) => w.portuguese);
@@ -146,7 +147,8 @@ export function QuizRunner({
     );
   }
 
-  const prompt = mode === "EN_TO_PT" ? word.english : word.portuguese;
+  const prompt =
+    mode === "PT_TO_EN" ? word.portuguese : word.english;
   const promptLabel =
     mode === "EN_TO_PT"
       ? "Traduza para o português"
