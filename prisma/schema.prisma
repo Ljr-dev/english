@@ -1,0 +1,206 @@
+// English Course — schema Prisma para SQL Server
+// Regra central: o conteúdo gerado por IA (frases) é cacheado no banco.
+// Apenas o admin possui a chave DeepSeek; todos os outros usuários consomem o cache.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+}
+
+// ---------------------------------------------------------------------------
+// Autenticação (NextAuth / Auth.js)
+// ---------------------------------------------------------------------------
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  /// Hash bcrypt da senha. Nulo para usuários sem login por senha.
+  passwordHash  String?
+  role          String    @default("USER") // USER | ADMIN
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+
+  accounts           Account[]
+  sessions           Session[]
+  progress           UserProgress[]
+  attempts           QuizAttempt[]
+  sentencesGenerated SentenceCache[] @relation("GeneratedBy")
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ---------------------------------------------------------------------------
+// Conteúdo pedagógico
+// ---------------------------------------------------------------------------
+
+/// Nível de proficiência, do iniciante ao fluente.
+model Level {
+  id          Int    @id
+  code        String @unique // A1, A2, B1, B2, C1, C2
+  name        String // Iniciante, Básico, Intermediário...
+  description String
+  order       Int    @unique
+
+  words   Word[]
+  lessons Lesson[]
+
+  @@map("levels")
+}
+
+/// Uma palavra em inglês com sua tradução e metadados.
+model Word {
+  id           String  @id @default(cuid())
+  english      String  @unique
+  portuguese   String
+  partOfSpeech String? // noun, verb, adjective...
+  exampleEn    String?
+  examplePt    String?
+  levelId      Int
+
+  level       Level          @relation(fields: [levelId], references: [id])
+  lessonWords LessonWord[]
+  progress    UserProgress[]
+  attempts    QuizAttempt[]
+
+  @@index([levelId])
+  @@map("words")
+}
+
+/// Uma lição agrupa N palavras (padrão: 10) de um mesmo nível.
+model Lesson {
+  id           String @id @default(cuid())
+  levelId      Int
+  orderInLevel Int
+  title        String
+
+  level       Level        @relation(fields: [levelId], references: [id])
+  lessonWords LessonWord[]
+  sentence    SentenceCache?
+
+  @@unique([levelId, orderInLevel])
+  @@map("lessons")
+}
+
+model LessonWord {
+  lessonId String
+  wordId   String
+  position Int
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  word   Word   @relation(fields: [wordId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@id([lessonId, wordId])
+  @@map("lesson_words")
+}
+
+// ---------------------------------------------------------------------------
+// Progresso do usuário — a progressão é travada: só avança ao acertar
+// ---------------------------------------------------------------------------
+
+model UserProgress {
+  id           String   @id @default(cuid())
+  userId       String
+  wordId       String
+  masteryLevel Int      @default(0) // 0..3 — acertos consecutivos
+  correctCount Int      @default(0)
+  wrongCount   Int      @default(0)
+  lastSeenAt   DateTime @default(now())
+  nextReviewAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, wordId])
+  @@index([userId, nextReviewAt])
+  @@map("user_progress")
+}
+
+model QuizAttempt {
+  id        String   @id @default(cuid())
+  userId    String
+  wordId    String
+  mode      String // EN_TO_PT | PT_TO_EN | MULTIPLE_CHOICE | SENTENCE
+  answer    String
+  isCorrect Boolean
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  word Word @relation(fields: [wordId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("quiz_attempts")
+}
+
+// ---------------------------------------------------------------------------
+// Cache de frases geradas pela DeepSeek — o coração da economia de créditos
+// ---------------------------------------------------------------------------
+
+/// Frase de consolidação de uma lição. Gerada UMA vez pelo admin e
+/// reaproveitada por todos os usuários daquela lição.
+model SentenceCache {
+  id            String    @id @default(cuid())
+  lessonId      String    @unique
+  sentenceEn    String?
+  sentencePt    String?
+  /// Tradução aceita como resposta correta (normalizada)
+  expectedPt    String?
+  status        String    @default("PENDING") // PENDING | GENERATING | READY | FAILED
+  error         String?
+  model         String?
+  tokensUsed    Int?
+  generatedById String?
+  generatedAt   DateTime?
+  createdAt     DateTime  @default(now())
+
+  lesson      Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  generatedBy User?  @relation("GeneratedBy", fields: [generatedById], references: [id])
+
+  @@index([status])
+  @@map("sentence_cache")
+}

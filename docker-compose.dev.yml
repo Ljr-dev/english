@@ -1,0 +1,17 @@
+# Docker Compose apenas para desenvolvimento local.
+# Sobe um SQL Server isolado para testar sem tocar na VPS.
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: english-course-sqlserver
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "YourStrong!Passw0rd"
+      MSSQL_PID: "Developer"
+    ports:
+      - "14330:1433"
+    volumes:
+      - english_course_mssql:/var/opt/mssql
+
+volumes:
+  english_course_mssql:

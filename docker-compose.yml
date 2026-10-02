@@ -1,0 +1,28 @@
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        AUTH_URL: ${AUTH_URL}
+    image: english-course:latest
+    container_name: english-course
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      # Aponta para o container de SQL Server existente na VPS.
+      # Ajuste o host conforme a rede Docker onde o SQL Server está.
+      DATABASE_URL: ${DATABASE_URL}
+    ports:
+      - "127.0.0.1:3100:3000"
+    networks:
+      - default
+      - sqlserver
+
+networks:
+  # Rede externa onde o container `sqlserver` já está rodando na VPS.
+  # Nesta VPS o SQL Server está na rede `ljr-net`.
+  sqlserver:
+    external: true
+    name: ${SQLSERVER_NETWORK:-ljr-net}
