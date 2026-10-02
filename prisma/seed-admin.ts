@@ -7,7 +7,7 @@
  */
 import { PrismaClient } from "@prisma/client";
 import { PrismaMssql } from "@prisma/adapter-mssql";
-import { hashPassword } from "../src/lib/password";
+import { hashPassword } from "./password";
 
 const DEFAULT_ADMIN_EMAIL = "leandrojoserocha@hotmail.com";
 const DEFAULT_ADMIN_PASSWORD = "123456";

@@ -11,7 +11,7 @@ import "dotenv/config";
 import { randomBytes } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { PrismaMssql } from "@prisma/adapter-mssql";
-import { hashPassword } from "../src/lib/password";
+import { hashPassword } from "./password";
 
 const adapter = new PrismaMssql(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
