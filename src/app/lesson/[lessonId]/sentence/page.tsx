@@ -27,17 +27,19 @@ export default async function SentencePage({
         isAdmin={session.user.role === "ADMIN"}
       />
 
-      <main className="mx-auto w-full max-w-3xl flex-1 px-6 py-10">
+      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-6 sm:px-6 sm:py-10">
         <Link
           href={`/lesson/${lesson.id}`}
-          className="mb-6 inline-block text-sm text-muted transition hover:text-brand"
+          className="mb-4 inline-block text-sm text-muted transition hover:text-brand sm:mb-6"
         >
           ← Voltar para a lição
         </Link>
 
-        <div className="mb-6">
+        <div className="mb-4 sm:mb-6">
           <p className="text-sm font-medium text-brand">{lesson.level.code}</p>
-          <h1 className="text-2xl font-bold">Frase de consolidação</h1>
+          <h1 className="text-xl font-bold sm:text-2xl">
+            Frase de consolidação
+          </h1>
           <p className="mt-1 text-sm text-muted">
             Esta frase usa as {lesson.words.length} palavras que você acabou de
             dominar.

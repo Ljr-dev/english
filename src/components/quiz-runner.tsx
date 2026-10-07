@@ -1,6 +1,7 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { isWordMastered, type WordWithProgress } from "@/lib/progression";
 
@@ -18,13 +19,11 @@ export function QuizRunner({
   lessonId,
   words: initialWords,
   quizOptions,
-  lessonComplete,
   hasSentence,
 }: {
   lessonId: string;
   words: WordWithProgress[];
   quizOptions: Record<string, Options>;
-  lessonComplete: boolean;
   hasSentence: boolean;
 }) {
   const [words, setWords] = useState(initialWords);
@@ -40,6 +39,7 @@ export function QuizRunner({
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [submitting, setSubmitting] = useState(false);
   const [xp, setXp] = useState(0);
+  const router = useRouter();
 
   const word = words[index];
 
@@ -48,6 +48,22 @@ export function QuizRunner({
     [words],
   );
   const allMastered = masteredCount === words.length;
+
+  // Ao dominar a última palavra, segue direto para a frase de consolidação
+  // em vez de esperar mais um toque em "Continuar".
+  // `allMastered` é derivado do estado local, então reflete o progresso
+  // conquistado nesta sessão (o prop `lessonComplete` vem do render inicial
+  // do servidor e fica defasado).
+  const lessonDone = allMastered && hasSentence;
+
+  useEffect(() => {
+    if (!lessonDone) return;
+    const timer = setTimeout(
+      () => router.push(`/lesson/${lessonId}/sentence`),
+      1200,
+    );
+    return () => clearTimeout(timer);
+  }, [lessonDone, lessonId, router]);
 
   /**
    * Alterna entre reconhecer (EN→PT) e produzir (PT→EN) a cada acerto,
@@ -140,21 +156,21 @@ export function QuizRunner({
     return <p className="text-muted">Esta lição não tem palavras.</p>;
   }
 
-  if (allMastered && lessonComplete && hasSentence) {
+  if (allMastered && hasSentence) {
     return (
       <div className="rounded-2xl border border-success bg-success-soft p-8 text-center">
         <p className="mb-2 text-2xl font-bold text-success">
           Lição concluída! 🎉
         </p>
         <p className="mb-6 text-sm text-muted">
-          Você dominou as {words.length} palavras. Agora escolha a tradução
-          correta da frase que usa todas elas.
+          Você dominou as {words.length} palavras. Indo para a frase de
+          consolidação...
         </p>
         <Link
           href={`/lesson/${lessonId}/sentence`}
           className="inline-flex rounded-xl bg-brand px-6 py-3 font-medium text-white transition hover:opacity-90"
         >
-          Ir para a frase
+          Ir para a frase agora
         </Link>
       </div>
     );
@@ -180,7 +196,7 @@ export function QuizRunner({
   }
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-4">
       <div>
         <div className="mb-2 flex items-center justify-between text-sm text-muted">
           <span>
@@ -196,13 +212,13 @@ export function QuizRunner({
         </div>
       </div>
 
-      <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+      <div className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-8">
         <p className="mb-1 text-xs uppercase tracking-wide text-muted">
           {promptLabel}
         </p>
-        <p className="mb-6 text-3xl font-bold">{prompt}</p>
+        <p className="mb-4 text-2xl font-bold sm:mb-6 sm:text-3xl">{prompt}</p>
 
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-2.5 sm:grid-cols-2 sm:gap-3">
           {options.map((option) => (
             <button
               key={option}
@@ -218,7 +234,7 @@ export function QuizRunner({
 
         {feedback && (
           <div
-            className={`mt-6 rounded-xl border p-4 ${
+            className={`mt-4 rounded-xl border p-4 sm:mt-6 ${
               feedback.isCorrect
                 ? "border-success bg-success-soft"
                 : "border-danger bg-danger-soft"
@@ -237,17 +253,10 @@ export function QuizRunner({
               Resposta correta: <strong>{feedback.expected}</strong>
             </p>
             {word.exampleEn && (
-              <p className="mt-2 text-sm text-muted">
+              <p className="mt-2 hidden text-sm text-muted sm:block">
                 Exemplo: <em>{word.exampleEn}</em> — {word.examplePt}
               </p>
             )}
-            <button
-              type="button"
-              onClick={advance}
-              className="mt-4 rounded-xl bg-brand px-5 py-2 font-medium text-white transition hover:opacity-90"
-            >
-              Continuar
-            </button>
           </div>
         )}
       </div>
@@ -272,6 +281,22 @@ export function QuizRunner({
           />
         ))}
       </div>
+
+      {/*
+        Barra de ação fixa no rodapé: o botão "Continuar" fica sempre
+        alcançável no celular, sem precisar rolar a tela.
+      */}
+      {feedback && !lessonDone && (
+        <div className="sticky bottom-0 z-10 -mx-6 border-t border-border bg-card/95 px-6 py-3 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+          <button
+            type="button"
+            onClick={advance}
+            className="w-full rounded-xl bg-brand px-5 py-3 font-medium text-white transition hover:opacity-90 sm:w-auto"
+          >
+            Continuar
+          </button>
+        </div>
+      )}
     </div>
   );
 }

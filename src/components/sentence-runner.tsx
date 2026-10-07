@@ -60,20 +60,22 @@ export function SentenceRunner({
   }
 
   return (
-    <div className="rounded-2xl border border-border bg-card p-8 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card p-4 shadow-sm sm:p-8">
       <p className="mb-1 text-xs uppercase tracking-wide text-muted">
         Qual é a tradução correta da frase?
       </p>
-      <p className="mb-6 text-2xl font-semibold leading-snug">{sentenceEn}</p>
+      <p className="mb-3 text-lg font-semibold leading-snug sm:mb-6 sm:text-2xl">
+        {sentenceEn}
+      </p>
 
-      <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-2 sm:gap-3">
         {options.map((option) => (
           <button
             key={option}
             type="button"
             disabled={Boolean(result) || submitting}
             onClick={() => void submit(option)}
-            className={`rounded-xl border px-4 py-3 text-left transition ${optionClass(option)}`}
+            className={`rounded-xl border px-3 py-2.5 text-left text-sm leading-snug transition sm:px-4 sm:py-3 sm:text-base ${optionClass(option)}`}
           >
             {option}
           </button>
@@ -82,7 +84,7 @@ export function SentenceRunner({
 
       {result && (
         <div
-          className={`mt-6 rounded-xl border p-4 ${
+          className={`mt-4 rounded-xl border p-4 sm:mt-6 ${
             result.isCorrect
               ? "border-success bg-success-soft"
               : "border-danger bg-danger-soft"
@@ -101,26 +103,32 @@ export function SentenceRunner({
             <span className="text-muted">Tradução correta: </span>
             <strong>{result.sentencePt}</strong>
           </p>
-          <div className="mt-4 flex gap-3">
-            <Link
-              href="/dashboard"
-              className="rounded-xl bg-brand px-5 py-2 font-medium text-white transition hover:opacity-90"
+        </div>
+      )}
+
+      {/*
+        Ações fixas no rodapé no celular: aparecem sem precisar rolar a tela.
+      */}
+      {result && (
+        <div className="sticky bottom-0 z-10 -mx-4 mt-4 flex flex-wrap gap-3 border-t border-border bg-card/95 px-4 py-3 backdrop-blur sm:static sm:mx-0 sm:mt-6 sm:border-0 sm:bg-transparent sm:px-0 sm:py-0 sm:backdrop-blur-none">
+          <Link
+            href="/dashboard"
+            className="flex-1 rounded-xl bg-brand px-5 py-2.5 text-center font-medium text-white transition hover:opacity-90 sm:flex-none"
+          >
+            Voltar para a trilha
+          </Link>
+          {!result.isCorrect && (
+            <button
+              type="button"
+              onClick={() => {
+                setResult(null);
+                setChosen(null);
+              }}
+              className="flex-1 rounded-xl border border-border px-5 py-2.5 font-medium transition hover:border-brand sm:flex-none"
             >
-              Voltar para a trilha
-            </Link>
-            {!result.isCorrect && (
-              <button
-                type="button"
-                onClick={() => {
-                  setResult(null);
-                  setChosen(null);
-                }}
-                className="rounded-xl border border-border px-5 py-2 font-medium transition hover:border-brand"
-              >
-                Tentar de novo
-              </button>
-            )}
-          </div>
+              Tentar de novo
+            </button>
+          )}
         </div>
       )}
     </div>
