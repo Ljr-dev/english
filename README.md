@@ -4,7 +4,7 @@ Sistema de aprendizado de vocabulário em inglês com **progressão travada**: v
 
 🌐 **Produção:** https://english.ljr.dev.br
 
-Do **iniciante ao fluente** (A1 → C2), com 240 palavras, 24 lições e uma frase de consolidação gerada por IA no final de cada lição.
+Do **iniciante ao fluente** (A1 → C2), com 240 palavras, 24 lições e uma frase de consolidação no final de cada lição.
 
 ---
 
@@ -15,14 +15,12 @@ Do **iniciante ao fluente** (A1 → C2), com 240 palavras, 24 lições e uma fra
 3. **Frase de consolidação** — quando as 10 palavras da lição estão dominadas, você recebe uma frase em inglês que usa **todas elas** e precisa traduzi-la.
 4. **Níveis sequenciais** — A1, A2, B1, B2, C1 e C2. Cada nível só abre quando o anterior é concluído.
 
-### Economia de créditos de IA
+### Conteúdo das frases (sem IA em execução)
 
-Este é o ponto central da arquitetura:
-
-- A chave da DeepSeek fica **apenas no servidor** e é usada **somente pelo administrador**.
-- Quando o admin gera a frase de uma lição, ela é **salva no banco** (`sentence_cache`).
-- Todos os outros usuários **reaproveitam a frase já gerada** — sem consumir API.
-- Resultado: a mesma frase é paga **uma única vez**, não importa quantos alunos usem o sistema.
+- As frases de consolidação são **conteúdo editorial**: o admin escreve cada frase no painel `/admin`.
+- Elas ficam salvas no banco (`sentence_cache`) e são **reaproveitadas por todos os alunos**.
+- **Nenhuma API de IA é chamada** pelo sistema — não existe chave de API, custo por token nem limite de requisições.
+- As lições de A1 a B1 já vêm com frases no seed ([`prisma/data/sentences.ts`](prisma/data/sentences.ts)); as demais podem ser escritas pelo painel a qualquer momento.
 
 ---
 
@@ -35,7 +33,6 @@ Este é o ponto central da arquitetura:
 | Estilo | Tailwind CSS v4 |
 | Banco | SQL Server (via Prisma 7 + `@prisma/adapter-mssql`) |
 | Autenticação | Auth.js (NextAuth v5) com **e-mail e senha** (Credentials + JWT) |
-| IA | DeepSeek (`deepseek-chat`) — somente para o admin |
 
 ---
 
@@ -65,7 +62,6 @@ DATABASE_URL="sqlserver://localhost:1433;database=english_course;user=sa;passwor
 AUTH_SECRET="gere-com-openssl-rand-base64-32"
 AUTH_URL="http://localhost:3000"
 AUTH_TRUST_HOST="true"
-DEEPSEEK_API_KEY="sk-..."
 ADMIN_EMAIL="leandrojoserocha@hotmail.com"
 ADMIN_PASSWORD="123456"
 ```
@@ -146,7 +142,6 @@ DATABASE_URL="sqlserver://sqlserver:1433;database=english_course;user=sa;passwor
 AUTH_SECRET="<openssl rand -base64 32>"
 AUTH_URL="https://english.ljr.dev.br"
 AUTH_TRUST_HOST="true"
-DEEPSEEK_API_KEY="sk-..."
 ADMIN_EMAIL="leandrojoserocha@hotmail.com"
 ADMIN_PASSWORD="123456"
 SQLSERVER_NETWORK="ljr-net"
@@ -191,13 +186,16 @@ server {
 }
 ```
 
-### 6. Gerar as frases (painel admin)
+### 6. Cadastrar as frases (painel admin)
 
 1. Faça login com o e-mail e a senha definidos em `ADMIN_EMAIL` / `ADMIN_PASSWORD`.
-2. Acesse `/admin`.
-3. Selecione as lições e clique em **Gerar frases**.
+2. Acesse `/admin` → aba **Frases**.
+3. Escolha a lição e escreva a frase em inglês e a tradução esperada.
 
 As frases ficam salvas no banco e são reaproveitadas por todos os alunos.
+
+> O seed já cadastra as frases de A1 a B1 a partir de [`prisma/data/sentences.ts`](prisma/data/sentences.ts).
+> O que for escrito no painel é preservado mesmo que o seed rode novamente.
 
 ---
 
@@ -207,21 +205,21 @@ As frases ficam salvas no banco e são reaproveitadas por todos os alunos.
 prisma/
   schema.prisma          # modelos (User, Level, Word, Lesson, SentenceCache...)
   data/words.ts          # base de palavras por nível (fonte de verdade)
-  seed.ts                # popula níveis, palavras e lições
+  data/sentences.ts      # frases de consolidação escritas à mão (B2, C1 e C2)
+  seed.ts                # popula níveis, palavras, lições e frases
 src/
   app/
     page.tsx             # landing
     login/               # login com e-mail e senha
     dashboard/           # trilha de níveis e lições
     lesson/[lessonId]/   # quiz + frase de consolidação
-    admin/               # painel de geração de frases
-    api/                 # quiz, sentence, admin/generate, auth
+    admin/               # painel de frases e usuários
+    api/                 # quiz, sentence, admin/sentences, admin/users, auth
   components/            # QuizRunner, SentenceRunner, AdminPanel, AppHeader
   lib/
     progression.ts       # regras de progressão travada
     answer-check.ts      # comparação de respostas (acentos, artigos, typos)
-    sentences.ts         # cache de frases
-    deepseek.ts          # cliente da DeepSeek
+    sentences.ts         # frases de consolidação (cadastro manual)
     queries.ts           # consultas da trilha e do progresso
 ```
 
@@ -236,6 +234,15 @@ npm run db:seed
 ```
 
 O seed é idempotente — pode rodar quantas vezes quiser. Cada grupo de 10 palavras vira automaticamente uma nova lição.
+
+---
+
+## Adicionando frases de consolidação
+
+Duas formas:
+
+1. **Painel** (`/admin` → aba **Frases**) — escreva a frase em inglês e a tradução esperada de qualquer lição. É o caminho recomendado e preserva o que já foi cadastrado.
+2. **Seed** ([`prisma/data/sentences.ts`](prisma/data/sentences.ts)) — frases versionadas no repositório. O seed só aplica a frase quando a lição ainda não tem nenhuma, para não sobrescrever edições feitas no painel.
 
 ---
 

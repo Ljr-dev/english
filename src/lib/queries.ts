@@ -55,7 +55,7 @@ export async function getTrail(userId: string) {
         masteredWords: progress.mastered,
         percent: progress.percent,
         isComplete: progress.isComplete,
-        hasSentence: lesson.sentence?.status === "READY",
+        hasSentence: ["READY", "MANUAL"].includes(lesson.sentence?.status ?? ""),
       };
     });
 

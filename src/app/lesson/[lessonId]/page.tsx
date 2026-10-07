@@ -42,7 +42,9 @@ export default async function LessonPage({
           lessonId={lesson.id}
           words={lesson.words}
           lessonComplete={lesson.progress.isComplete}
-          hasSentence={lesson.sentence?.status === "READY"}
+          hasSentence={["READY", "MANUAL"].includes(
+            lesson.sentence?.status ?? "",
+          )}
         />
       </main>
     </>

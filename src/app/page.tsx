@@ -18,8 +18,7 @@ export default async function HomePage() {
     {
       title: "3. Frase de consolidação",
       text: "Com as 10 palavras dominadas, você recebe uma frase que usa todas elas — e traduz.",
-    },
-    {
+    },    {
       title: "4. Do iniciante ao fluente",
       text: "A1, A2, B1, B2, C1 e C2. Cada nível abre quando o anterior é concluído.",
     },

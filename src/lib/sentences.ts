@@ -1,25 +1,25 @@
 import { prisma } from "@/lib/prisma";
-import {
-  generateSentence,
-  isDeepSeekConfigured,
-} from "@/lib/deepseek";
 
 /**
- * Serviço de frases de consolidação com cache.
+ * Serviço das frases de consolidação.
  *
- * Fluxo (exatamente como definido pelo usuário):
+ * Fluxo:
  *  1. O usuário termina as palavras de uma lição.
  *  2. O sistema procura a frase daquela lição no banco.
- *  3. Se existir (READY) → entrega na hora, sem gastar API.
- *  4. Se não existir → fica como PENDING até o admin gerar pelo painel.
+ *  3. Se existir (READY ou MANUAL) → entrega na hora.
+ *  4. Se não existir → fica como PENDING até o admin cadastrar pelo painel.
+ *
+ * Nenhuma API externa é chamada: as frases são conteúdo editorial.
  */
+
+/** Status de cache que contam como frase disponível para o aluno. */
+const READY_STATUSES = ["READY", "MANUAL"];
 
 export type SentenceState =
   | { status: "READY"; sentenceEn: string; sentencePt: string }
-  | { status: "PENDING" }
-  | { status: "FAILED"; error: string | null };
+  | { status: "PENDING" };
 
-/** Busca a frase cacheada de uma lição. Nunca chama a API. */
+/** Busca a frase cadastrada de uma lição. Nunca chama API externa. */
 export async function getCachedSentence(
   lessonId: string,
 ): Promise<SentenceState> {
@@ -29,14 +29,12 @@ export async function getCachedSentence(
       status: true,
       sentenceEn: true,
       sentencePt: true,
-      error: true,
     },
   });
 
-  if (!cached) return { status: "PENDING" };
-
   if (
-    cached.status === "READY" &&
+    cached &&
+    READY_STATUSES.includes(cached.status) &&
     cached.sentenceEn &&
     cached.sentencePt
   ) {
@@ -47,28 +45,25 @@ export async function getCachedSentence(
     };
   }
 
-  if (cached.status === "FAILED") {
-    return { status: "FAILED", error: cached.error };
-  }
-
   return { status: "PENDING" };
 }
 
-/** Lista lições que ainda não têm frase gerada (para o painel de admin). */
-export async function listPendingSentences(limit = 50) {
+/** Lista as lições para o painel do admin, com a frase atual de cada uma. */
+export async function listSentencesForAdmin(limit = 100) {
   return prisma.lesson.findMany({
-    where: {
-      OR: [
-        { sentence: { is: null } },
-        { sentence: { status: { in: ["PENDING", "FAILED"] } } },
-      ],
-    },
     select: {
       id: true,
       title: true,
       orderInLevel: true,
       level: { select: { code: true, name: true, order: true } },
-      sentence: { select: { status: true, error: true } },
+      sentence: {
+        select: {
+          status: true,
+          sentenceEn: true,
+          sentencePt: true,
+          updatedAt: true,
+        },
+      },
       lessonWords: {
         orderBy: { position: "asc" },
         select: { word: { select: { english: true, portuguese: true } } },
@@ -79,110 +74,87 @@ export async function listPendingSentences(limit = 50) {
   });
 }
 
-export type GenerateResult =
-  | { ok: true; lessonId: string; sentenceEn: string; sentencePt: string }
-  | { ok: false; lessonId: string; error: string };
+/** Estatísticas das frases para o painel de admin. */
+export async function getSentenceStats() {
+  const [ready, pending, manual] = await Promise.all([
+    prisma.sentenceCache.count({ where: { status: "READY" } }),
+    prisma.sentenceCache.count({ where: { status: "PENDING" } }),
+    prisma.sentenceCache.count({ where: { status: "MANUAL" } }),
+  ]);
+
+  return { ready, pending, manual, total: ready + pending + manual };
+}
+
+export type SaveSentenceResult =
+  | { ok: true; lessonId: string }
+  | { ok: false; error: string };
 
 /**
- * Gera (via DeepSeek) e persiste a frase de uma lição.
+ * Cadastra (ou atualiza) a frase de uma lição.
  * Deve ser chamada apenas por rotas de admin.
  */
-export async function generateSentenceForLesson(
+export async function saveSentenceForLesson(
   lessonId: string,
-  adminUserId: string,
-): Promise<GenerateResult> {
-  if (!isDeepSeekConfigured()) {
-    return {
-      ok: false,
-      lessonId,
-      error: "DEEPSEEK_API_KEY não configurada no servidor.",
-    };
-  }
-
+  sentenceEn: string,
+  sentencePt: string,
+): Promise<SaveSentenceResult> {
   const lesson = await prisma.lesson.findUnique({
     where: { id: lessonId },
-    select: {
-      id: true,
-      level: { select: { name: true, code: true } },
-      lessonWords: {
-        orderBy: { position: "asc" },
-        select: { word: { select: { english: true, portuguese: true } } },
-      },
+    select: { id: true },
+  });
+
+  if (!lesson) return { ok: false, error: "Lição não encontrada." };
+
+  const en = sentenceEn.trim();
+  const pt = sentencePt.trim();
+  if (!en || !pt) {
+    return { ok: false, error: "Informe a frase em inglês e a tradução." };
+  }
+
+  const data = {
+    sentenceEn: en,
+    sentencePt: pt,
+    expectedPt: pt,
+    status: "MANUAL",
+  };
+
+  await prisma.sentenceCache.upsert({
+    where: { lessonId },
+    update: data,
+    create: { lessonId, ...data },
+  });
+
+  await prisma.manualSentence.upsert({
+    where: { lessonId },
+    update: { sentenceEn: en, sentencePt: pt },
+    create: { lessonId, sentenceEn: en, sentencePt: pt },
+  });
+
+  return { ok: true, lessonId };
+}
+
+/** Remove a frase de uma lição, devolvendo-a para a fila de pendências. */
+export async function clearSentenceForLesson(
+  lessonId: string,
+): Promise<SaveSentenceResult> {
+  const lesson = await prisma.lesson.findUnique({
+    where: { id: lessonId },
+    select: { id: true },
+  });
+
+  if (!lesson) return { ok: false, error: "Lição não encontrada." };
+
+  await prisma.sentenceCache.update({
+    where: { lessonId },
+    data: {
+      sentenceEn: null,
+      sentencePt: null,
+      expectedPt: null,
+      status: "PENDING",
     },
   });
 
-  if (!lesson) {
-    return { ok: false, lessonId, error: "Lição não encontrada." };
-  }
+  await prisma.manualSentence.deleteMany({ where: { lessonId } });
 
-  const words = lesson.lessonWords.map((lw) => lw.word);
-  if (words.length === 0) {
-    return { ok: false, lessonId, error: "Lição sem palavras." };
-  }
-
-  // Marca como GENERATING para evitar trabalho duplicado concorrente
-  await prisma.sentenceCache.upsert({
-    where: { lessonId },
-    update: { status: "GENERATING", error: null },
-    create: { lessonId, status: "GENERATING" },
-  });
-
-  try {
-    const generated = await generateSentence(
-      words,
-      `${lesson.level.code} (${lesson.level.name})`,
-    );
-
-    await prisma.sentenceCache.update({
-      where: { lessonId },
-      data: {
-        sentenceEn: generated.sentenceEn,
-        sentencePt: generated.sentencePt,
-        expectedPt: generated.sentencePt,
-        status: "READY",
-        error: null,
-        model: generated.model,
-        tokensUsed: generated.tokensUsed,
-        generatedById: adminUserId,
-        generatedAt: new Date(),
-      },
-    });
-
-    return {
-      ok: true,
-      lessonId,
-      sentenceEn: generated.sentenceEn,
-      sentencePt: generated.sentencePt,
-    };
-  } catch (error) {
-    const message =
-      error instanceof Error ? error.message : "Erro desconhecido";
-
-    await prisma.sentenceCache.update({
-      where: { lessonId },
-      data: { status: "FAILED", error: message.slice(0, 900) },
-    });
-
-    return { ok: false, lessonId, error: message };
-  }
-}
-
-/** Estatísticas de uso da API para o painel de admin. */
-export async function getSentenceStats() {
-  const [ready, pending, failed, tokens] = await Promise.all([
-    prisma.sentenceCache.count({ where: { status: "READY" } }),
-    prisma.sentenceCache.count({ where: { status: { in: ["PENDING", "GENERATING"] } } }),
-    prisma.sentenceCache.count({ where: { status: "FAILED" } }),
-    prisma.sentenceCache.aggregate({
-      _sum: { tokensUsed: true },
-      where: { status: "READY" },
-    }),
-  ]);
-
-  return {
-    ready,
-    pending,
-    failed,
-    totalTokens: tokens._sum.tokensUsed ?? 0,
-  };
+  return { ok: true, lessonId };
 }

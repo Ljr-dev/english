@@ -2,13 +2,23 @@ import "dotenv/config";
 import { PrismaClient } from "@prisma/client";
 import { PrismaMssql } from "@prisma/adapter-mssql";
 import { LEVELS, WORDS_PER_LESSON } from "./data/words";
+import { MANUAL_SENTENCES } from "./data/sentences";
 import { seedAdmin } from "./seed-admin";
 
 const adapter = new PrismaMssql(process.env.DATABASE_URL!);
 const prisma = new PrismaClient({ adapter });
 
+function manualSentenceFor(levelCode: string, orderInLevel: number) {
+  return MANUAL_SENTENCES.find(
+    (sentence) =>
+      sentence.levelCode === levelCode && sentence.orderInLevel === orderInLevel,
+  );
+}
+
 async function main() {
   console.log("🌱 Populando níveis e palavras...\n");
+
+  let manualCount = 0;
 
   console.log("👤 Administrador:");
   await seedAdmin(prisma);
@@ -99,6 +109,44 @@ async function main() {
         update: {},
         create: { lessonId: lesson.id, status: "PENDING" },
       });
+
+      // Frases escritas manualmente (prisma/data/sentences.ts).
+      // Só aplica quando a lição ainda NÃO tem frase pronta, para não
+      // sobrescrever o que o admin cadastrou/ajustou pelo painel.
+      const manual = manualSentenceFor(level.code, orderInLevel);
+      if (manual) {
+        const cache = await prisma.sentenceCache.findUnique({
+          where: { lessonId: lesson.id },
+          select: { status: true },
+        });
+
+        if (cache?.status !== "READY" && cache?.status !== "MANUAL") {
+          await prisma.sentenceCache.update({
+            where: { lessonId: lesson.id },
+            data: {
+              sentenceEn: manual.sentenceEn,
+              sentencePt: manual.sentencePt,
+              expectedPt: manual.sentencePt,
+              status: "MANUAL",
+            },
+          });
+
+          await prisma.manualSentence.upsert({
+            where: { lessonId: lesson.id },
+            update: {
+              sentenceEn: manual.sentenceEn,
+              sentencePt: manual.sentencePt,
+            },
+            create: {
+              lessonId: lesson.id,
+              sentenceEn: manual.sentenceEn,
+              sentencePt: manual.sentencePt,
+            },
+          });
+
+          manualCount++;
+        }
+      }
     }
 
     console.log(
@@ -114,6 +162,9 @@ async function main() {
 
   console.log(
     `\n🎉 Concluído: ${levels} níveis, ${words} palavras, ${lessons} lições.`,
+  );
+  console.log(
+    `📝 Frases manuais aplicadas agora: ${manualCount} (as já cadastradas foram preservadas).`,
   );
 }
 

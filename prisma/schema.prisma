@@ -1,6 +1,7 @@
 // English Course — schema Prisma para SQL Server
-// Regra central: o conteúdo gerado por IA (frases) é cacheado no banco.
-// Apenas o admin possui a chave DeepSeek; todos os outros usuários consomem o cache.
+// Regra central: as frases de consolidação são conteúdo editorial,
+// cadastrado manualmente pelo admin no painel e servido do banco.
+// Nenhuma API de IA é chamada em tempo de execução.
 
 generator client {
   provider = "prisma-client-js"
@@ -26,11 +27,10 @@ model User {
   active        Boolean   @default(true)
   createdAt     DateTime  @default(now())
 
-  accounts           Account[]
-  sessions           Session[]
-  progress           UserProgress[]
-  attempts           QuizAttempt[]
-  sentencesGenerated SentenceCache[] @relation("GeneratedBy")
+  accounts     Account[]
+  sessions     Session[]
+  progress     UserProgress[]
+  attempts     QuizAttempt[]
 
   @@map("users")
 }
@@ -119,9 +119,10 @@ model Lesson {
   orderInLevel Int
   title        String
 
-  level       Level        @relation(fields: [levelId], references: [id])
-  lessonWords LessonWord[]
-  sentence    SentenceCache?
+  level         Level            @relation(fields: [levelId], references: [id])
+  lessonWords   LessonWord[]
+  sentence      SentenceCache?
+  manualPhrase  ManualSentence?
 
   @@unique([levelId, orderInLevel])
   @@map("lessons")
@@ -178,29 +179,40 @@ model QuizAttempt {
 }
 
 // ---------------------------------------------------------------------------
-// Cache de frases geradas pela DeepSeek — o coração da economia de créditos
+// Frases de consolidação — conteúdo editorial cadastrado pelo admin
 // ---------------------------------------------------------------------------
 
-/// Frase de consolidação de uma lição. Gerada UMA vez pelo admin e
-/// reaproveitada por todos os usuários daquela lição.
+/// Frase de consolidação de uma lição. Cadastrada manualmente pelo admin
+/// e reaproveitada por todos os usuários daquela lição.
 model SentenceCache {
-  id            String    @id @default(cuid())
-  lessonId      String    @unique
-  sentenceEn    String?
-  sentencePt    String?
+  id         String    @id @default(cuid())
+  lessonId   String    @unique
+  sentenceEn String?
+  sentencePt String?
   /// Tradução aceita como resposta correta (normalizada)
-  expectedPt    String?
-  status        String    @default("PENDING") // PENDING | GENERATING | READY | FAILED
-  error         String?
-  model         String?
-  tokensUsed    Int?
-  generatedById String?
-  generatedAt   DateTime?
-  createdAt     DateTime  @default(now())
+  expectedPt String?
+  status     String    @default("PENDING") // PENDING | READY | MANUAL
+  updatedAt  DateTime  @updatedAt
+  createdAt  DateTime  @default(now())
 
-  lesson      Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
-  generatedBy User?  @relation("GeneratedBy", fields: [generatedById], references: [id])
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@index([status])
   @@map("sentence_cache")
+}
+
+/// Frase cadastrada manualmente para uma lição.
+///
+/// Existe para preservar o conteúdo escrito à mão mesmo quando o seed roda
+/// novamente: o seed só cria a linha se a lição ainda não tiver frase.
+model ManualSentence {
+  lessonId   String   @id
+  sentenceEn String
+  sentencePt String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@map("manual_lesson_sentences")
 }

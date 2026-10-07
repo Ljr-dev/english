@@ -44,7 +44,8 @@ export default async function SentencePage({
           </p>
         </div>
 
-        {sentence?.status === "READY" && sentence.sentenceEn ? (
+        {["READY", "MANUAL"].includes(sentence?.status ?? "") &&
+        sentence?.sentenceEn ? (
           <SentenceRunner
             lessonId={lesson.id}
             sentenceEn={sentence.sentenceEn}
@@ -55,7 +56,7 @@ export default async function SentencePage({
               Frase ainda não disponível
             </p>
             <p className="text-sm text-muted">
-              A frase desta lição ainda não foi gerada. Ela aparecerá
+              A frase desta lição ainda não foi cadastrada. Ela aparecerá
               automaticamente assim que estiver pronta — seu progresso está
               salvo.
             </p>

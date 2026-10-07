@@ -12,7 +12,7 @@ const bodySchema = z.object({
 
 /**
  * Valida a tradução da frase de consolidação.
- * A frase vem SEMPRE do cache no banco — nunca da API nesta rota.
+ * A frase vem SEMPRE do banco — nenhuma API externa é chamada nesta rota.
  */
 export async function POST(request: Request) {
   const session = await auth();
@@ -46,12 +46,12 @@ export async function POST(request: Request) {
   const sentence = lesson.sentence;
   if (
     !sentence ||
-    sentence.status !== "READY" ||
+    !["READY", "MANUAL"].includes(sentence.status) ||
     !sentence.sentencePt ||
     !sentence.sentenceEn
   ) {
     return NextResponse.json(
-      { error: "A frase desta lição ainda não foi gerada." },
+      { error: "A frase desta lição ainda não foi cadastrada." },
       { status: 409 },
     );
   }
