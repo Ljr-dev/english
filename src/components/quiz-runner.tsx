@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { isWordMastered, type WordWithProgress } from "@/lib/progression";
 
@@ -28,6 +28,9 @@ export function QuizRunner({
   hasSentence: boolean;
 }) {
   const [words, setWords] = useState(initialWords);
+  // Espelho síncrono de `words`: o avanço acontece no mesmo clique da
+  // resposta, antes de o React re-renderizar com o novo masteryLevel.
+  const wordsRef = useRef(initialWords);
   const [index, setIndex] = useState(() =>
     Math.max(
       0,
@@ -108,11 +111,13 @@ export function QuizRunner({
         });
         if (data.isCorrect) setXp((prev) => prev + data.xp);
 
-        setWords((prev) =>
-          prev.map((w) =>
-            w.id === word.id ? { ...w, masteryLevel: data.masteryLevel } : w,
-          ),
+        // Guarda a lista já atualizada: o avanço precisa enxergar o novo
+        // masteryLevel no mesmo clique, sem depender do estado do React.
+        const updated = words.map((w) =>
+          w.id === word.id ? { ...w, masteryLevel: data.masteryLevel } : w,
         );
+        setWords(updated);
+        wordsRef.current = updated;
       } catch {
         setFeedback({
           isCorrect: false,
@@ -123,13 +128,13 @@ export function QuizRunner({
         setSubmitting(false);
       }
     },
-    [word, mode, submitting, feedback],
+    [word, mode, submitting, feedback, words],
   );
 
   const advance = useCallback(() => {
     setFeedback(null);
-    goNext(index, words);
-  }, [goNext, index, words]);
+    goNext(index, wordsRef.current);
+  }, [goNext, index]);
 
   if (!word) {
     return <p className="text-muted">Esta lição não tem palavras.</p>;
