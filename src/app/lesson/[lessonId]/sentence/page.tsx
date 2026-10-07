@@ -49,6 +49,7 @@ export default async function SentencePage({
           <SentenceRunner
             lessonId={lesson.id}
             sentenceEn={sentence.sentenceEn}
+            options={lesson.sentenceOptions}
           />
         ) : (
           <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-sm">

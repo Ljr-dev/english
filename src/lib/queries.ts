@@ -4,6 +4,11 @@ import {
   isWordMastered,
   type WordWithProgress,
 } from "@/lib/progression";
+import {
+  optionsForEnglish,
+  optionsForPortuguese,
+  optionsForSentence,
+} from "@/lib/quiz-options";
 
 /** Trilha completa: níveis → lições, com progresso do usuário e desbloqueio. */
 export async function getTrail(userId: string) {
@@ -131,6 +136,35 @@ export async function getLessonForUser(lessonId: string, userId: string) {
 
   const progress = computeLessonProgress(words);
 
+  // Alternativas de cada palavra, montadas a partir das 10 palavras da lição.
+  const quizOptions = Object.fromEntries(
+    words.map((word) => [
+      word.id,
+      {
+        enToPt: optionsForPortuguese(word.portuguese, words),
+        ptToEn: optionsForEnglish(word.english, words),
+      },
+    ]),
+  );
+
+  // Distratores da frase: traduções das outras frases já cadastradas na trilha.
+  const otherSentences = await prisma.sentenceCache.findMany({
+    where: {
+      lessonId: { not: lesson.id },
+      status: { in: ["READY", "MANUAL"] },
+      sentencePt: { not: null },
+    },
+    select: { sentencePt: true },
+    take: 60,
+  });
+
+  const sentenceOptions = lesson.sentence?.sentencePt
+    ? optionsForSentence(
+        lesson.sentence.sentencePt,
+        otherSentences.map((row) => row.sentencePt as string),
+      )
+    : [];
+
   return {
     id: lesson.id,
     title: lesson.title,
@@ -139,6 +173,8 @@ export async function getLessonForUser(lessonId: string, userId: string) {
     words,
     progress,
     sentence: lesson.sentence,
+    quizOptions,
+    sentenceOptions,
   };
 }
 

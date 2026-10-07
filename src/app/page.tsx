@@ -8,8 +8,8 @@ export default async function HomePage() {
 
   const steps = [
     {
-      title: "1. Quiz de vocabulário",
-      text: "Veja a palavra em inglês e escreva a tradução. Errou? A palavra volta a aparecer.",
+      title: "1. Quiz de múltipla escolha",
+      text: "Veja a palavra em inglês (ou em português) e toque na tradução correta. Sem digitar nada.",
     },
     {
       title: "2. Só avança acertando",
@@ -17,7 +17,7 @@ export default async function HomePage() {
     },
     {
       title: "3. Frase de consolidação",
-      text: "Com as 10 palavras dominadas, você recebe uma frase que usa todas elas — e traduz.",
+      text: "Com as 10 palavras dominadas, você escolhe a tradução da frase que usa todas elas.",
     },    {
       title: "4. Do iniciante ao fluente",
       text: "A1, A2, B1, B2, C1 e C2. Cada nível abre quando o anterior é concluído.",
@@ -35,8 +35,9 @@ export default async function HomePage() {
           <span className="text-brand">ainda não sabe</span> — sem pular etapa.
         </h1>
         <p className="max-w-2xl text-lg text-muted">
-          Um quiz que insiste nas palavras difíceis até você acertar, e que só
-          libera a próxima lição quando o conteúdo estiver realmente dominado.
+          Um quiz de múltipla escolha que insiste nas palavras difíceis até você
+          acertar, e que só libera a próxima lição quando o conteúdo estiver
+          realmente dominado.
         </p>
         <div className="w-full max-w-sm pt-2">
           <Link

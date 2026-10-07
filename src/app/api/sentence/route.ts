@@ -2,16 +2,16 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAnswerCorrectWithTolerance } from "@/lib/answer-check";
 import { computeLessonProgress } from "@/lib/progression";
 
 const bodySchema = z.object({
   lessonId: z.string().min(1),
-  answer: z.string().max(2000),
+  // Alternativa escolhida pelo aluno (o quiz é de múltipla escolha).
+  answer: z.string().trim().min(1).max(2000),
 });
 
 /**
- * Valida a tradução da frase de consolidação.
+ * Valida a tradução da frase de consolidação, escolhida entre alternativas.
  * A frase vem SEMPRE do banco — nenhuma API externa é chamada nesta rota.
  */
 export async function POST(request: Request) {
@@ -56,7 +56,8 @@ export async function POST(request: Request) {
     );
   }
 
-  const isCorrect = isAnswerCorrectWithTolerance(answer, sentence.sentencePt);
+  // A alternativa escolhida vem exatamente da lista montada pelo servidor.
+  const isCorrect = answer === sentence.sentencePt;
 
   const progressRows = await prisma.userProgress.findMany({
     where: {

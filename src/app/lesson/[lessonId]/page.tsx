@@ -41,6 +41,7 @@ export default async function LessonPage({
         <QuizRunner
           lessonId={lesson.id}
           words={lesson.words}
+          quizOptions={lesson.quizOptions}
           lessonComplete={lesson.progress.isComplete}
           hasSentence={["READY", "MANUAL"].includes(
             lesson.sentence?.status ?? "",

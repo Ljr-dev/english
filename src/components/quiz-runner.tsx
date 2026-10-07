@@ -4,21 +4,26 @@ import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { isWordMastered, type WordWithProgress } from "@/lib/progression";
 
-type Mode = "EN_TO_PT" | "PT_TO_EN" | "MULTIPLE_CHOICE";
+type Mode = "EN_TO_PT" | "PT_TO_EN";
+
+type Options = { enToPt: string[]; ptToEn: string[] };
 
 type Feedback = {
   isCorrect: boolean;
   expected: string;
+  chosen: string;
 } | null;
 
 export function QuizRunner({
   lessonId,
   words: initialWords,
+  quizOptions,
   lessonComplete,
   hasSentence,
 }: {
   lessonId: string;
   words: WordWithProgress[];
+  quizOptions: Record<string, Options>;
   lessonComplete: boolean;
   hasSentence: boolean;
 }) {
@@ -29,7 +34,6 @@ export function QuizRunner({
       initialWords.findIndex((w) => w.masteryLevel === 0),
     ),
   );
-  const [answer, setAnswer] = useState("");
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [submitting, setSubmitting] = useState(false);
   const [xp, setXp] = useState(0);
@@ -42,26 +46,21 @@ export function QuizRunner({
   );
   const allMastered = masteredCount === words.length;
 
-  /** Alterna EN→PT / PT→EN e usa múltipla escolha como reforço inicial. */
+  /**
+   * Alterna entre reconhecer (EN→PT) e produzir (PT→EN) a cada acerto,
+   * para a mesma palavra ser cobrada nos dois sentidos.
+   */
   const mode: Mode = useMemo(() => {
     if (!word) return "EN_TO_PT";
-    if (word.masteryLevel === 0 && (index + word.english.length) % 3 === 0) {
-      return "MULTIPLE_CHOICE";
-    }
     return (index + word.masteryLevel) % 2 === 0 ? "EN_TO_PT" : "PT_TO_EN";
   }, [word, index]);
 
   const options = useMemo(() => {
-    if (mode !== "MULTIPLE_CHOICE" || !word) return [];
-    // Múltipla escolha é sempre EN→PT: pergunta em inglês, opções em português.
-    const pool = words
-      .filter((w) => w.id !== word.id)
-      .map((w) => w.portuguese);
-    const distractors = pool.slice(0, 3);
-    return [...distractors, word.portuguese].sort(
-      (a, b) => a.localeCompare(b, "pt-BR"),
-    );
-  }, [mode, word, words]);
+    if (!word) return [];
+    const perWord = quizOptions[word.id];
+    if (!perWord) return [];
+    return mode === "PT_TO_EN" ? perWord.ptToEn : perWord.enToPt;
+  }, [word, quizOptions, mode]);
 
   const goNext = useCallback(
     (fromIndex: number, currentWords: WordWithProgress[]) => {
@@ -83,17 +82,15 @@ export function QuizRunner({
   );
 
   const submit = useCallback(
-    async (value: string) => {
+    async (choice: string) => {
       if (!word || submitting || feedback) return;
-      const trimmed = value.trim();
-      if (!trimmed) return;
 
       setSubmitting(true);
       try {
         const response = await fetch("/api/quiz", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ wordId: word.id, mode, answer: trimmed }),
+          body: JSON.stringify({ wordId: word.id, mode, answer: choice }),
         });
 
         if (!response.ok) throw new Error("Falha ao registrar resposta");
@@ -104,7 +101,11 @@ export function QuizRunner({
           xp: number;
         };
 
-        setFeedback({ isCorrect: data.isCorrect, expected: data.expected });
+        setFeedback({
+          isCorrect: data.isCorrect,
+          expected: data.expected,
+          chosen: choice,
+        });
         if (data.isCorrect) setXp((prev) => prev + data.xp);
 
         setWords((prev) =>
@@ -113,7 +114,11 @@ export function QuizRunner({
           ),
         );
       } catch {
-        setFeedback({ isCorrect: false, expected: "Erro de conexão" });
+        setFeedback({
+          isCorrect: false,
+          expected: "Erro de conexão",
+          chosen: choice,
+        });
       } finally {
         setSubmitting(false);
       }
@@ -123,7 +128,6 @@ export function QuizRunner({
 
   const advance = useCallback(() => {
     setFeedback(null);
-    setAnswer("");
     goNext(index, words);
   }, [goNext, index, words]);
 
@@ -138,8 +142,8 @@ export function QuizRunner({
           Lição concluída! 🎉
         </p>
         <p className="mb-6 text-sm text-muted">
-          Você dominou as {words.length} palavras. Agora traduza a frase que usa
-          todas elas.
+          Você dominou as {words.length} palavras. Agora escolha a tradução
+          correta da frase que usa todas elas.
         </p>
         <Link
           href={`/lesson/${lessonId}/sentence`}
@@ -151,14 +155,24 @@ export function QuizRunner({
     );
   }
 
-  const prompt =
-    mode === "PT_TO_EN" ? word.portuguese : word.english;
+  const prompt = mode === "PT_TO_EN" ? word.portuguese : word.english;
   const promptLabel =
     mode === "EN_TO_PT"
-      ? "Traduza para o português"
-      : mode === "PT_TO_EN"
-        ? "Traduza para o inglês"
-        : "Escolha a tradução correta";
+      ? "Qual é a tradução correta?"
+      : "Qual é a palavra em inglês?";
+
+  function optionClass(option: string): string {
+    if (!feedback) {
+      return "border-border hover:border-brand disabled:opacity-60";
+    }
+    if (option === feedback.expected) {
+      return "border-success bg-success-soft text-success";
+    }
+    if (option === feedback.chosen) {
+      return "border-danger bg-danger-soft text-danger";
+    }
+    return "border-border opacity-50";
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -183,46 +197,19 @@ export function QuizRunner({
         </p>
         <p className="mb-6 text-3xl font-bold">{prompt}</p>
 
-        {mode === "MULTIPLE_CHOICE" ? (
-          <div className="grid gap-3 sm:grid-cols-2">
-            {options.map((option) => (
-              <button
-                key={option}
-                type="button"
-                disabled={Boolean(feedback) || submitting}
-                onClick={() => void submit(option)}
-                className="rounded-xl border border-border px-4 py-3 text-left transition hover:border-brand disabled:opacity-60"
-              >
-                {option}
-              </button>
-            ))}
-          </div>
-        ) : (
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              void submit(answer);
-            }}
-            className="flex flex-col gap-3 sm:flex-row"
-          >
-            <input
-              value={answer}
-              onChange={(event) => setAnswer(event.target.value)}
-              disabled={Boolean(feedback) || submitting}
-              autoFocus
-              autoComplete="off"
-              placeholder="Digite a tradução..."
-              className="flex-1 rounded-xl border border-border bg-background px-4 py-3 outline-none transition focus:border-brand disabled:opacity-60"
-            />
+        <div className="grid gap-3 sm:grid-cols-2">
+          {options.map((option) => (
             <button
-              type="submit"
-              disabled={Boolean(feedback) || submitting || !answer.trim()}
-              className="rounded-xl bg-brand px-6 py-3 font-medium text-white transition hover:opacity-90 disabled:opacity-50"
+              key={option}
+              type="button"
+              disabled={Boolean(feedback) || submitting}
+              onClick={() => void submit(option)}
+              className={`rounded-xl border px-4 py-3 text-left transition ${optionClass(option)}`}
             >
-              {submitting ? "Verificando..." : "Responder"}
+              {option}
             </button>
-          </form>
-        )}
+          ))}
+        </div>
 
         {feedback && (
           <div
@@ -267,7 +254,6 @@ export function QuizRunner({
             type="button"
             onClick={() => {
               setFeedback(null);
-              setAnswer("");
               setIndex(i);
             }}
             title={w.english}

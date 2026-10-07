@@ -2,17 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isAnswerCorrectWithTolerance } from "@/lib/answer-check";
-import {
-  applyAnswer,
-  computeXp,
-  MASTERY_TARGET,
-} from "@/lib/progression";
+import { applyAnswer, computeXp, MASTERY_TARGET } from "@/lib/progression";
 
 const bodySchema = z.object({
   wordId: z.string().min(1),
-  mode: z.enum(["EN_TO_PT", "PT_TO_EN", "MULTIPLE_CHOICE"]),
-  answer: z.string().max(500),
+  // "EN_TO_PT" = pergunta em inglês; "PT_TO_EN" = pergunta em português.
+  mode: z.enum(["EN_TO_PT", "PT_TO_EN"]),
+  // Alternativa escolhida pelo aluno. O quiz é sempre de múltipla escolha.
+  answer: z.string().trim().min(1).max(200),
 });
 
 /**
@@ -50,9 +47,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // MULTIPLE_CHOICE é sempre EN→PT (pergunta em inglês, resposta em português).
+  // O esperado é sempre o texto cadastrado no banco e a alternativa escolhida
+  // vem exatamente dessa lista: a comparação é direta, sem tolerância.
   const expected = mode === "PT_TO_EN" ? word.english : word.portuguese;
-  const isCorrect = isAnswerCorrectWithTolerance(answer, expected);
+  const isCorrect = answer === expected;
 
   const existing = await prisma.userProgress.findUnique({
     where: { userId_wordId: { userId: session.user.id, wordId } },
@@ -91,8 +89,8 @@ export async function POST(request: Request) {
       data: {
         userId: session.user.id,
         wordId,
-        mode,
-        answer: answer.slice(0, 500),
+        mode: "MULTIPLE_CHOICE",
+        answer: answer.slice(0, 200),
         isCorrect,
       },
     }),

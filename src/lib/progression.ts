@@ -6,6 +6,9 @@
  * - A lição só libera a frase de consolidação quando TODAS as palavras
  *   atingirem o domínio mínimo.
  * - O nível só libera a próxima lição quando a lição atual estiver concluída.
+ *
+ * O quiz é sempre de múltipla escolha: o aluno escolhe a alternativa, nunca
+ * digita a resposta.
  */
 
 /** Acertos consecutivos necessários para dominar uma palavra. */
@@ -13,8 +16,6 @@ export const MASTERY_TARGET = 2;
 
 /** Acertos consecutivos necessários para liberar a frase da lição. */
 export const LESSON_MASTERY_TARGET = MASTERY_TARGET;
-
-export type QuizMode = "EN_TO_PT" | "PT_TO_EN" | "MULTIPLE_CHOICE";
 
 export type WordWithProgress = {
   id: string;
@@ -52,21 +53,6 @@ export function applyAnswer(
     correctCount: current.correctCount,
     wrongCount: current.wrongCount + 1,
   };
-}
-
-/**
- * Escolhe o próximo modo de quiz para uma palavra, alternando
- * entre reconhecer (EN→PT) e produzir (PT→EN), com múltipla escolha
- * como reforço quando a palavra ainda está no começo.
- */
-export function pickQuizMode(
-  masteryLevel: number,
-  seed: number,
-): QuizMode {
-  if (masteryLevel === 0) {
-    return seed % 3 === 0 ? "MULTIPLE_CHOICE" : "EN_TO_PT";
-  }
-  return seed % 2 === 0 ? "EN_TO_PT" : "PT_TO_EN";
 }
 
 /** Progresso agregado de uma lição. */

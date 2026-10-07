@@ -10,10 +10,17 @@ Do **iniciante ao fluente** (A1 → C2), com 240 palavras, 24 lições e uma fra
 
 ## Como funciona
 
-1. **Quiz de vocabulário** — a palavra aparece em inglês (ou em português) e você digita a tradução. Também há múltipla escolha como reforço nas primeiras tentativas.
+1. **Quiz de múltipla escolha** — a palavra aparece em inglês (ou em português) e você **escolhe** a tradução correta entre 4 alternativas. **Nada é digitado.**
 2. **Progressão travada** — cada palavra precisa ser acertada **2 vezes consecutivas** para ser dominada. Se errar, o domínio daquela palavra volta a zero e ela reaparece.
-3. **Frase de consolidação** — quando as 10 palavras da lição estão dominadas, você recebe uma frase em inglês que usa **todas elas** e precisa traduzi-la.
+3. **Frase de consolidação** — quando as 10 palavras da lição estão dominadas, você escolhe a tradução correta da frase que usa **todas elas**, também entre alternativas.
 4. **Níveis sequenciais** — A1, A2, B1, B2, C1 e C2. Cada nível só abre quando o anterior é concluído.
+
+### Sem digitação
+
+- Toda interação é por toque/clique: **não existe campo de texto** no quiz nem na frase.
+- O servidor monta as alternativas e valida a escolha comparando o texto exato — sem tolerância a erros de digitação, porque não há digitação.
+- As alternativas erradas saem das outras palavras da própria lição; na frase, saem das traduções das outras frases da trilha.
+- A cada acerto a palavra é cobrada no sentido inverso (EN→PT e depois PT→EN), garantindo os dois sentidos sem sair do múltipla escolha.
 
 ### Conteúdo das frases (sem IA em execução)
 
@@ -218,7 +225,7 @@ src/
   components/            # QuizRunner, SentenceRunner, AdminPanel, AppHeader
   lib/
     progression.ts       # regras de progressão travada
-    answer-check.ts      # comparação de respostas (acentos, artigos, typos)
+    quiz-options.ts      # montagem das alternativas de múltipla escolha
     sentences.ts         # frases de consolidação (cadastro manual)
     queries.ts           # consultas da trilha e do progresso
 ```
